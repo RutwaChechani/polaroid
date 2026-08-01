@@ -18,7 +18,7 @@
         }
 
         h1 { margin-bottom: 10px; }
-        p { margin-bottom: 30px; color: #bdc3c7; }
+        p { margin-bottom: 30px; color: #bdc3c7; text-align: center; }
 
         /* Viewfinder styling */
         .viewfinder {
@@ -36,7 +36,7 @@
             height: 300px;
             object-fit: cover;
             transform: scaleX(-1); /* Mirror the camera */
-            transition: filter 0.3s ease; /* Smooth transition when changing filters */
+            transition: filter 0.3s ease;
         }
 
         /* Controls */
@@ -186,18 +186,23 @@
             flash.style.opacity = '1';
             setTimeout(() => { flash.style.opacity = '0'; }, 100);
 
-            // Create a temporary canvas to grab the current un-filtered video frame
+            // Create a temporary canvas to grab the frame
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = video.videoWidth;
             tempCanvas.height = video.videoHeight;
             const tempCtx = tempCanvas.getContext('2d');
             
+            // 🔥 THE FIX: Apply the filter to the canvas context BEFORE drawing the image
+            tempCtx.filter = filters[filterSelect.value];
+
             // Mirror the image to match the video feed
             tempCtx.translate(tempCanvas.width, 0);
             tempCtx.scale(-1, 1);
+            
+            // Draw the filtered frame
             tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
 
-            // Save image data
+            // Save the baked image data
             capturedImages.push(tempCanvas.toDataURL('image/jpeg', 0.9));
 
             // Update UI
@@ -240,9 +245,8 @@
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, pWidth, pHeight);
 
-            // 2. Load and draw all 3 images with the chosen filter applied!
+            // 2. Load and draw all 3 images (they already have the filter baked in now!)
             let loadedCount = 0;
-            const selectedFilterString = filters[filterSelect.value];
             
             const imgElements = capturedImages.map(src => {
                 const img = new Image();
@@ -252,8 +256,8 @@
 
             imgElements.forEach((img, index) => {
                 img.onload = () => {
-                    // Apply the selected filter to the canvas context
-                    ctx.filter = selectedFilterString;
+                    // Ensure no double-filtering happens here
+                    ctx.filter = 'none';
                     
                     const yPos = pPadding + (index * (imgHeight + pSpacing));
                     ctx.drawImage(img, pPadding, yPos, imgWidth, imgHeight);
@@ -268,8 +272,6 @@
 
         // Export canvas to image and setup download link
         function finalizeImage() {
-            // Reset filter so our text at the bottom doesn't get filtered
-            ctx.filter = 'none';
             ctx.fillStyle = "#333333";
             ctx.font = "bold 20px 'Courier New'";
             ctx.textAlign = "center";
@@ -304,7 +306,7 @@
             
             startBtn.style.display = 'inline-block';
             
-            // Reset the camera styling just in case
+            // Maintain the currently selected filter on reset
             video.style.filter = filters[filterSelect.value];
         });
     </script>
