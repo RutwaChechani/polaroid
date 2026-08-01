@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Polaroid Studio</title>
+    <style>
+        /* Base page styling */
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #e0e5ec;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        /* Controls section */
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 40px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button, select, input[type="file"]::file-selector-button {
+            padding: 10px 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background-color 0.2s;
+        }
+
+        button:hover, select:hover, input[type="file"]::file-selector-button:hover {
+            background-color: #e9ecef;
+        }
+
+        /* The studio area where polaroids appear */
+        .studio-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            max-width: 1000px;
+        }
+
+        /* Polaroid styling */
+        .polaroid {
+            background-color: white;
+            padding: 15px 15px 60px 15px; /* Large bottom padding for the classic look */
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            width: 250px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .polaroid:hover {
+            transform: scale(1.05) rotate(0deg) !important; /* Straightens and enlarges on hover */
+            box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+            z-index: 10;
+        }
+
+        .polaroid img {
+            width: 100%;
+            height: 250px;
+            object-fit: cover; /* Ensures the image fills the square perfectly */
+            background-color: #111; /* Dark background before image loads */
+            transition: filter 0.3s ease;
+        }
+
+        .polaroid .caption {
+            text-align: center;
+            margin-top: 20px;
+            font-weight: bold;
+            color: #555;
+            font-size: 1.1rem;
+        }
+
+        /* Filter Classes applied via JavaScript */
+        .filter-none { filter: none; }
+        .filter-vintage { filter: sepia(0.5) contrast(1.2) brightness(0.9) hue-rotate(-15deg); }
+        .filter-bw { filter: grayscale(100%) contrast(1.5) brightness(1.1); }
+        .filter-faded { filter: brightness(1.2) contrast(0.8) saturate(0.6); }
+        .filter-cool { filter: contrast(1.1) saturate(1.3) hue-rotate(15deg); }
+    </style>
+</head>
+<body>
+
+    <h1>📸 Digital Polaroid Studio</h1>
+
+    <div class="controls">
+        <input type="file" id="imageUpload" multiple accept="image/*">
+        
+        <label for="filterSelect">Choose a Filter:</label>
+        <select id="filterSelect">
+            <option value="none">Normal</option>
+            <option value="vintage">Vintage Sepia</option>
+            <option value="bw">High Contrast B&W</option>
+            <option value="faded">Faded Memory</option>
+            <option value="cool">Cool Tone</option>
+        </select>
+        
+        <button id="clearBtn">Clear Studio</button>
+    </div>
+
+    <div class="studio-container" id="studio">
+        </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const filterSelect = document.getElementById('filterSelect');
+        const studio = document.getElementById('studio');
+        const clearBtn = document.getElementById('clearBtn');
+
+        // Handle Image Uploads
+        imageUpload.addEventListener('change', function(event) {
+            const files = event.target.files;
+
+            // Clear previous images to simulate taking a new "batch" of 2-3 photos
+            studio.innerHTML = '';
+
+            // Restrict to a maximum of 3 images as requested
+            const filesToProcess = Array.from(files).slice(0, 3);
+
+            if (filesToProcess.length === 0) return;
+
+            filesToProcess.forEach(file => {
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+
+                    reader.onload = function(e) {
+                        createPolaroid(e.target.result);
+                    }
+
+                    // Read the file as a data URL so it can be displayed in an <img> tag
+                    reader.readAsDataURL(file);
+                }
+            });
+        });
+
+        // Handle Filter Changes
+        filterSelect.addEventListener('change', function(event) {
+            const selectedFilter = event.target.value;
+            const images = document.querySelectorAll('.polaroid img');
+            
+            images.forEach(img => {
+                // Reset classes
+                img.className = '';
+                // Apply the new filter class
+                img.classList.add('filter-' + selectedFilter);
+            });
+        });
+
+        // Handle Clearing the Studio
+        clearBtn.addEventListener('click', () => {
+            studio.innerHTML = '';
+            imageUpload.value = ''; // Reset the file input
+        });
+
+        // Function to construct the Polaroid HTML element
+        function createPolaroid(imageSrc) {
+            const polaroidDiv = document.createElement('div');
+            polaroidDiv.classList.add('polaroid');
+
+            // Generate a random rotation between -6 and 6 degrees for authenticity
+            const randomRotation = Math.floor(Math.random() * 13) - 6;
+            polaroidDiv.style.transform = `rotate(${randomRotation}deg)`;
+
+            // Create the image element
+            const imgElement = document.createElement('img');
+            imgElement.src = imageSrc;
+            
+            // Immediately apply whatever filter is currently selected in the dropdown
+            imgElement.classList.add('filter-' + filterSelect.value);
+
+            // Create the caption element
+            const captionDiv = document.createElement('div');
+            captionDiv.classList.add('caption');
+            
+            // Randomly select a cute default caption
+            const captions = ["Good times", "Core memory", "Snapshot", "Vibes"];
+            captionDiv.innerText = captions[Math.floor(Math.random() * captions.length)];
+
+            // Assemble the Polaroid and add it to the page
+            polaroidDiv.appendChild(imgElement);
+            polaroidDiv.appendChild(captionDiv);
+            studio.appendChild(polaroidDiv);
+        }
+    </script>
+</body>
+</html>
