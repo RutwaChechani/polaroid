@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Digital Polaroid Studio</title>
+    <title>Polaroid Photobooth</title>
     <style>
-        /* Base page styling */
         body {
             font-family: 'Courier New', Courier, monospace;
-            background-color: #e0e5ec;
+            background-color: #2c3e50;
+            color: white;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -18,189 +18,279 @@
         }
 
         h1 {
-            color: #333;
+            margin-bottom: 10px;
+        }
+
+        p {
+            margin-bottom: 30px;
+            color: #bdc3c7;
+        }
+
+        /* Viewfinder styling */
+        .viewfinder {
+            background: #000;
+            border: 10px solid #34495e;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+
+        video {
+            display: block;
+            width: 400px;
+            height: 300px;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror the camera */
+        }
+
+        /* Buttons */
+        .controls {
+            display: flex;
+            gap: 15px;
             margin-bottom: 30px;
         }
 
-        /* Controls section */
-        .controls {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 40px;
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        button, select, input[type="file"]::file-selector-button {
-            padding: 10px 15px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-            cursor: pointer;
+        button, .download-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
             font-family: inherit;
-            transition: background-color 0.2s;
-        }
-
-        button:hover, select:hover, input[type="file"]::file-selector-button:hover {
-            background-color: #e9ecef;
-        }
-
-        /* The studio area where polaroids appear */
-        .studio-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 30px;
-            max-width: 1000px;
-        }
-
-        /* Polaroid styling */
-        .polaroid {
-            background-color: white;
-            padding: 15px 15px 60px 15px; /* Large bottom padding for the classic look */
-            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
-            width: 250px;
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            cursor: pointer;
-        }
-
-        .polaroid:hover {
-            transform: scale(1.05) rotate(0deg) !important; /* Straightens and enlarges on hover */
-            box-shadow: 0 12px 24px rgba(0,0,0,0.25);
-            z-index: 10;
-        }
-
-        .polaroid img {
-            width: 100%;
-            height: 250px;
-            object-fit: cover; /* Ensures the image fills the square perfectly */
-            background-color: #111; /* Dark background before image loads */
-            transition: filter 0.3s ease;
-        }
-
-        .polaroid .caption {
-            text-align: center;
-            margin-top: 20px;
             font-weight: bold;
-            color: #555;
-            font-size: 1.1rem;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s, transform 0.1s;
         }
 
-        /* Filter Classes applied via JavaScript */
-        .filter-none { filter: none; }
-        .filter-vintage { filter: sepia(0.5) contrast(1.2) brightness(0.9) hue-rotate(-15deg); }
-        .filter-bw { filter: grayscale(100%) contrast(1.5) brightness(1.1); }
-        .filter-faded { filter: brightness(1.2) contrast(0.8) saturate(0.6); }
-        .filter-cool { filter: contrast(1.1) saturate(1.3) hue-rotate(15deg); }
+        button:hover, .download-btn:hover {
+            background-color: #c0392b;
+        }
+
+        button:active, .download-btn:active {
+            transform: scale(0.95);
+        }
+
+        button:disabled {
+            background-color: #7f8c8d;
+            cursor: not-allowed;
+        }
+
+        /* The hidden canvas used to draw the final image */
+        canvas {
+            display: none;
+        }
+
+        /* The final display image */
+        #finalResult {
+            display: none;
+            max-width: 90%;
+            height: auto;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+            margin-bottom: 30px;
+            transform: rotate(2deg); /* Slight messy angle */
+        }
+
+        /* Camera flash effect */
+        #flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.1s ease-out;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
 
-    <h1>📸 Digital Polaroid Studio</h1>
+    <div id="flash"></div>
 
-    <div class="controls">
-        <input type="file" id="imageUpload" multiple accept="image/*">
-        
-        <label for="filterSelect">Choose a Filter:</label>
-        <select id="filterSelect">
-            <option value="none">Normal</option>
-            <option value="vintage">Vintage Sepia</option>
-            <option value="bw">High Contrast B&W</option>
-            <option value="faded">Faded Memory</option>
-            <option value="cool">Cool Tone</option>
-        </select>
-        
-        <button id="clearBtn">Clear Studio</button>
+    <h1>📸 Digital Photobooth</h1>
+    <p>Grant camera access, take 3 photos, and download your Polaroid strip!</p>
+
+    <div class="viewfinder" id="viewfinderWrapper">
+        <video id="videoFeed" autoplay playsinline></video>
     </div>
 
-    <div class="studio-container" id="studio">
-        </div>
+    <img id="finalResult" alt="Your Polaroid Strip" />
+
+    <div class="controls">
+        <button id="startBtn">Start Camera</button>
+        <button id="captureBtn" disabled>Capture (0/3)</button>
+        <a id="downloadBtn" class="download-btn" style="display: none;">Download Polaroid</a>
+    </div>
+
+    <button id="resetBtn" style="display: none;">Take New Photos</button>
+
+    <canvas id="renderCanvas"></canvas>
 
     <script>
-        const imageUpload = document.getElementById('imageUpload');
-        const filterSelect = document.getElementById('filterSelect');
-        const studio = document.getElementById('studio');
-        const clearBtn = document.getElementById('clearBtn');
+        const video = document.getElementById('videoFeed');
+        const startBtn = document.getElementById('startBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const renderCanvas = document.getElementById('renderCanvas');
+        const finalResult = document.getElementById('finalResult');
+        const viewfinderWrapper = document.getElementById('viewfinderWrapper');
+        const flash = document.getElementById('flash');
+        const ctx = renderCanvas.getContext('2d');
 
-        // Handle Image Uploads
-        imageUpload.addEventListener('change', function(event) {
-            const files = event.target.files;
+        let stream = null;
+        let capturedImages = [];
+        const MAX_PHOTOS = 3;
 
-            // Clear previous images to simulate taking a new "batch" of 2-3 photos
-            studio.innerHTML = '';
-
-            // Restrict to a maximum of 3 images as requested
-            const filesToProcess = Array.from(files).slice(0, 3);
-
-            if (filesToProcess.length === 0) return;
-
-            filesToProcess.forEach(file => {
-                if (file && file.type.startsWith('image/')) {
-                    const reader = new FileReader();
-
-                    reader.onload = function(e) {
-                        createPolaroid(e.target.result);
-                    }
-
-                    // Read the file as a data URL so it can be displayed in an <img> tag
-                    reader.readAsDataURL(file);
-                }
-            });
+        // Start Camera
+        startBtn.addEventListener('click', async () => {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
+                });
+                video.srcObject = stream;
+                startBtn.style.display = 'none';
+                captureBtn.disabled = false;
+            } catch (err) {
+                alert("Camera access denied or unavailable. Please ensure you are running this on a secure server (localhost or https).");
+                console.error(err);
+            }
         });
 
-        // Handle Filter Changes
-        filterSelect.addEventListener('change', function(event) {
-            const selectedFilter = event.target.value;
-            const images = document.querySelectorAll('.polaroid img');
+        // Capture Photo
+        captureBtn.addEventListener('click', () => {
+            if (capturedImages.length >= MAX_PHOTOS) return;
+
+            // Trigger flash effect
+            flash.style.opacity = '1';
+            setTimeout(() => { flash.style.opacity = '0'; }, 100);
+
+            // Create a temporary canvas to grab the current video frame
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
             
-            images.forEach(img => {
-                // Reset classes
-                img.className = '';
-                // Apply the new filter class
-                img.classList.add('filter-' + selectedFilter);
-            });
+            // Mirror the image to match the video feed
+            tempCtx.translate(tempCanvas.width, 0);
+            tempCtx.scale(-1, 1);
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            // Save image data
+            capturedImages.push(tempCanvas.toDataURL('image/jpeg', 0.9));
+
+            // Update UI
+            captureBtn.innerText = `Capture (${capturedImages.length}/${MAX_PHOTOS})`;
+
+            // If 3 photos are taken, process the polaroid
+            if (capturedImages.length === MAX_PHOTOS) {
+                finishSession();
+            }
         });
 
-        // Handle Clearing the Studio
-        clearBtn.addEventListener('click', () => {
-            studio.innerHTML = '';
-            imageUpload.value = ''; // Reset the file input
-        });
-
-        // Function to construct the Polaroid HTML element
-        function createPolaroid(imageSrc) {
-            const polaroidDiv = document.createElement('div');
-            polaroidDiv.classList.add('polaroid');
-
-            // Generate a random rotation between -6 and 6 degrees for authenticity
-            const randomRotation = Math.floor(Math.random() * 13) - 6;
-            polaroidDiv.style.transform = `rotate(${randomRotation}deg)`;
-
-            // Create the image element
-            const imgElement = document.createElement('img');
-            imgElement.src = imageSrc;
+        // Generate the final polaroid and stop the camera
+        function finishSession() {
+            captureBtn.style.display = 'none';
+            viewfinderWrapper.style.display = 'none';
             
-            // Immediately apply whatever filter is currently selected in the dropdown
-            imgElement.classList.add('filter-' + filterSelect.value);
+            // Stop video tracks to turn off the webcam light
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
 
-            // Create the caption element
-            const captionDiv = document.createElement('div');
-            captionDiv.classList.add('caption');
-            
-            // Randomly select a cute default caption
-            const captions = ["Good times", "Core memory", "Snapshot", "Vibes"];
-            captionDiv.innerText = captions[Math.floor(Math.random() * captions.length)];
-
-            // Assemble the Polaroid and add it to the page
-            polaroidDiv.appendChild(imgElement);
-            polaroidDiv.appendChild(captionDiv);
-            studio.appendChild(polaroidDiv);
+            buildPolaroid();
         }
+
+        // Draw the photos onto a canvas styled like a Polaroid strip
+        function buildPolaroid() {
+            // Define Polaroid layout dimensions
+            const pWidth = 400; // Total width
+            const pPadding = 20; // Edge padding
+            const pSpacing = 15; // Space between photos
+            const pBottom = 100; // Large bottom margin for classic polaroid look
+            
+            const imgWidth = pWidth - (pPadding * 2);
+            // Assuming 4:3 aspect ratio from camera
+            const imgHeight = imgWidth * 0.75; 
+
+            // Calculate total canvas height
+            const pHeight = pPadding + (imgHeight * 3) + (pSpacing * 2) + pBottom;
+
+            renderCanvas.width = pWidth;
+            renderCanvas.height = pHeight;
+
+            // 1. Draw white background
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, pWidth, pHeight);
+
+            // 2. Load and draw all 3 images
+            let loadedCount = 0;
+            const imgElements = capturedImages.map(src => {
+                const img = new Image();
+                img.src = src;
+                return img;
+            });
+
+            imgElements.forEach((img, index) => {
+                img.onload = () => {
+                    // Apply a slight vintage filter to the canvas context
+                    ctx.filter = 'contrast(1.1) sepia(0.2) brightness(0.9)';
+                    
+                    const yPos = pPadding + (index * (imgHeight + pSpacing));
+                    ctx.drawImage(img, pPadding, yPos, imgWidth, imgHeight);
+                    
+                    loadedCount++;
+                    if (loadedCount === MAX_PHOTOS) {
+                        finalizeImage();
+                    }
+                };
+            });
+        }
+
+        // Export canvas to image and setup download link
+        function finalizeImage() {
+            // Reset filter and add some text at the bottom
+            ctx.filter = 'none';
+            ctx.fillStyle = "#333333";
+            ctx.font = "bold 20px 'Courier New'";
+            ctx.textAlign = "center";
+            
+            // Date formatting
+            const today = new Date().toLocaleDateString();
+            ctx.fillText(today, renderCanvas.width / 2, renderCanvas.height - 40);
+
+            // Convert canvas to a downloadable image
+            const finalDataURL = renderCanvas.toDataURL('image/jpeg', 0.9);
+            
+            finalResult.src = finalDataURL;
+            finalResult.style.display = 'block';
+
+            downloadBtn.href = finalDataURL;
+            downloadBtn.download = `polaroid_strip_${Date.now()}.jpg`;
+            downloadBtn.style.display = 'inline-block';
+            
+            resetBtn.style.display = 'inline-block';
+        }
+
+        // Reset the application to take new photos
+        resetBtn.addEventListener('click', () => {
+            capturedImages = [];
+            finalResult.style.display = 'none';
+            downloadBtn.style.display = 'none';
+            resetBtn.style.display = 'none';
+            viewfinderWrapper.style.display = 'block';
+            
+            captureBtn.style.display = 'inline-block';
+            captureBtn.innerText = `Capture (0/3)`;
+            captureBtn.disabled = true;
+            
+            startBtn.style.display = 'inline-block';
+        });
     </script>
 </body>
 </html>
