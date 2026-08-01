@@ -35,7 +35,7 @@
             width: 400px;
             height: 300px;
             object-fit: cover;
-            transform: scaleX(-1); /* Mirror the camera */
+            transform: scaleX(-1);
             transition: filter 0.3s ease;
         }
 
@@ -74,20 +74,20 @@
         button:active, .download-btn:active { transform: scale(0.95); }
         button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
 
-        /* The hidden canvas used to draw the final image */
+        /* Hidden canvas */
         canvas { display: none; }
 
-        /* The final display image */
+        /* Final Display Image */
         #finalResult {
             display: none;
             max-width: 90%;
             height: auto;
             box-shadow: 0 15px 30px rgba(0,0,0,0.5);
             margin-bottom: 30px;
-            transform: rotate(2deg); /* Slight messy angle */
+            transform: rotate(2deg);
         }
 
-        /* Camera flash effect */
+        /* Camera flash */
         #flash {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -148,19 +148,18 @@
         let capturedImages = [];
         const MAX_PHOTOS = 3;
 
-        // Map our dropdown choices to valid CSS/Canvas filter strings
+        // Using percentages for strict cross-browser compatibility
         const filters = {
             'none': 'none',
-            'vintage': 'sepia(0.5) contrast(1.2) brightness(0.9) hue-rotate(-15deg)',
-            'bw': 'grayscale(100%) contrast(1.5) brightness(1.1)',
-            'faded': 'brightness(1.2) contrast(0.8) saturate(0.6)',
-            'cool': 'contrast(1.1) saturate(1.3) hue-rotate(15deg)'
+            'vintage': 'sepia(80%) contrast(120%) brightness(90%) hue-rotate(-15deg)',
+            'bw': 'grayscale(100%) contrast(150%) brightness(110%)',
+            'faded': 'brightness(120%) contrast(80%) saturate(60%)',
+            'cool': 'contrast(110%) saturate(130%) hue-rotate(15deg)'
         };
 
-        // Live update the video feed when a user picks a filter
+        // Live update video feed
         filterSelect.addEventListener('change', (e) => {
-            const selectedFilter = filters[e.target.value];
-            video.style.filter = selectedFilter;
+            video.style.filter = filters[e.target.value];
         });
 
         // Start Camera
@@ -173,7 +172,7 @@
                 startBtn.style.display = 'none';
                 captureBtn.disabled = false;
             } catch (err) {
-                alert("Camera access denied. Please ensure you are running this on a secure server (localhost or https).");
+                alert("Camera access denied. Run on a local server (localhost).");
                 console.error(err);
             }
         });
@@ -182,39 +181,29 @@
         captureBtn.addEventListener('click', () => {
             if (capturedImages.length >= MAX_PHOTOS) return;
 
-            // Trigger flash effect
             flash.style.opacity = '1';
             setTimeout(() => { flash.style.opacity = '0'; }, 100);
 
-            // Create a temporary canvas to grab the frame
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = video.videoWidth;
             tempCanvas.height = video.videoHeight;
             const tempCtx = tempCanvas.getContext('2d');
             
-            // 🔥 THE FIX: Apply the filter to the canvas context BEFORE drawing the image
-            tempCtx.filter = filters[filterSelect.value];
-
-            // Mirror the image to match the video feed
             tempCtx.translate(tempCanvas.width, 0);
             tempCtx.scale(-1, 1);
             
-            // Draw the filtered frame
+            // Grab raw video frame
             tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+            capturedImages.push(tempCanvas.toDataURL('image/jpeg', 1.0));
 
-            // Save the baked image data
-            capturedImages.push(tempCanvas.toDataURL('image/jpeg', 0.9));
-
-            // Update UI
             captureBtn.innerText = `Capture (${capturedImages.length}/${MAX_PHOTOS})`;
 
-            // If 3 photos are taken, process the polaroid
             if (capturedImages.length === MAX_PHOTOS) {
                 finishSession();
             }
         });
 
-        // Generate the final polaroid and stop the camera
+        // Stop camera and build strip
         function finishSession() {
             captureBtn.style.display = 'none';
             viewfinderWrapper.style.display = 'none';
@@ -226,16 +215,15 @@
             buildPolaroid();
         }
 
-        // Draw the photos onto a canvas styled like a Polaroid strip
-        function buildPolaroid() {
+        // Build the final polaroid using Promises to prevent rendering bugs
+        async function buildPolaroid() {
             const pWidth = 400; 
             const pPadding = 20; 
             const pSpacing = 15; 
             const pBottom = 100; 
             
             const imgWidth = pWidth - (pPadding * 2);
-            const imgHeight = imgWidth * 0.75; // 4:3 aspect ratio
-
+            const imgHeight = imgWidth * 0.75; 
             const pHeight = pPadding + (imgHeight * 3) + (pSpacing * 2) + pBottom;
 
             renderCanvas.width = pWidth;
@@ -245,33 +233,24 @@
             ctx.fillStyle = "#ffffff";
             ctx.fillRect(0, 0, pWidth, pHeight);
 
-            // 2. Load and draw all 3 images (they already have the filter baked in now!)
-            let loadedCount = 0;
-            
-            const imgElements = capturedImages.map(src => {
-                const img = new Image();
-                img.src = src;
-                return img;
+            // 2. Safely wait for all 3 images to load into memory
+            const loadedImages = await Promise.all(capturedImages.map(src => {
+                return new Promise(resolve => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.src = src;
+                });
+            }));
+
+            // 3. Lock in the filter and draw all 3 images
+            ctx.filter = filters[filterSelect.value];
+            loadedImages.forEach((img, index) => {
+                const yPos = pPadding + (index * (imgHeight + pSpacing));
+                ctx.drawImage(img, pPadding, yPos, imgWidth, imgHeight);
             });
 
-            imgElements.forEach((img, index) => {
-                img.onload = () => {
-                    // Ensure no double-filtering happens here
-                    ctx.filter = 'none';
-                    
-                    const yPos = pPadding + (index * (imgHeight + pSpacing));
-                    ctx.drawImage(img, pPadding, yPos, imgWidth, imgHeight);
-                    
-                    loadedCount++;
-                    if (loadedCount === MAX_PHOTOS) {
-                        finalizeImage();
-                    }
-                };
-            });
-        }
-
-        // Export canvas to image and setup download link
-        function finalizeImage() {
+            // 4. Remove filter securely before drawing text
+            ctx.filter = 'none';
             ctx.fillStyle = "#333333";
             ctx.font = "bold 20px 'Courier New'";
             ctx.textAlign = "center";
@@ -279,7 +258,7 @@
             const today = new Date().toLocaleDateString();
             ctx.fillText(today, renderCanvas.width / 2, renderCanvas.height - 40);
 
-            // Convert canvas to a downloadable image
+            // 5. Output image
             const finalDataURL = renderCanvas.toDataURL('image/jpeg', 0.9);
             
             finalResult.src = finalDataURL;
@@ -292,7 +271,7 @@
             resetBtn.style.display = 'inline-block';
         }
 
-        // Reset the application to take new photos
+        // Reset
         resetBtn.addEventListener('click', () => {
             capturedImages = [];
             finalResult.style.display = 'none';
@@ -303,10 +282,8 @@
             captureBtn.style.display = 'inline-block';
             captureBtn.innerText = `Capture (0/3)`;
             captureBtn.disabled = true;
-            
             startBtn.style.display = 'inline-block';
             
-            // Maintain the currently selected filter on reset
             video.style.filter = filters[filterSelect.value];
         });
     </script>
